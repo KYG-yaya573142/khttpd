@@ -19,6 +19,8 @@ static struct socket *listen_socket;
 static struct http_server_param param;
 static struct task_struct *http_server;
 
+struct workqueue_struct *khttpd_wq;
+
 static inline int setsockopt(struct socket *sock,
                              int level,
                              int optname,
@@ -98,6 +100,9 @@ static int __init khttpd_init(void)
         return err;
     }
     param.listen_socket = listen_socket;
+
+    /* Create a dedicated workqueue instead of using system_wq */
+    khttpd_wq = alloc_workqueue("khpptd_wq", WQ_UNBOUND, 0);
     http_server = kthread_run(http_server_daemon, &param, KBUILD_MODNAME);
     if (IS_ERR(http_server)) {
         pr_err("can't start http server daemon\n");
@@ -112,6 +117,7 @@ static void __exit khttpd_exit(void)
     send_sig(SIGTERM, http_server, 1);
     kthread_stop(http_server);
     close_listen_socket(listen_socket);
+    destroy_workqueue(khttpd_wq);
     pr_info("module unloaded\n");
 }
 
